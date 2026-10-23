@@ -16,7 +16,7 @@ test("static export contains the personal home and MB4X project", async () => {
   assert.match(home, /amateur radio, contesting, DXpeditions/i);
   const html = archive;
   assert.match(html, /<title>MB4X Radio Archive<\/title>/i);
-  assert.match(html, /maxfreedman\.github\.io\/projects\/mb4x-radio-archive/i);
+  assert.doesNotMatch(home + archive, /maxfreedman\.github\.io/i);
 });
 
 test("contact index and audio timeline stay aligned", async () => {
@@ -48,7 +48,7 @@ test("contact index and audio timeline stay aligned", async () => {
   assert.match(page, /Swap L\/R/);
 });
 
-test("all eight audio recordings ship in the Pages artifact", async () => {
+test("all eight audio recordings ship in the static build", async () => {
   const files = Array.from({ length: 8 }, (_, index) =>
     `recording-${String(index + 1).padStart(2, "0")}.mp3`
   );

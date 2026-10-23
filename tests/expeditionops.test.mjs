@@ -55,7 +55,7 @@ test("Logistics calculations preserve baggage, arrival, and readiness behavior",
   assert.ok(alerts(data).some((item) => item.title.includes("overweight")));
 });
 
-test("GitHub Pages artifact contains the standalone ExpeditionOps demo assets", async () => {
+test("Static build contains the standalone ExpeditionOps demo assets", async () => {
   const assets = [
     "index.html",
     "app.js",

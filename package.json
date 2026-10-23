@@ -9,7 +9,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "lint": "eslint app components src tests vite.config.ts eslint.config.mjs"
+    "lint": "eslint app components src tests scripts/package-release.mjs vite.config.ts eslint.config.mjs",
+    "package": "npm run lint && npm test && node scripts/package-release.mjs",
+    "test:deploy": "python3 -m unittest discover -s tests/deploy -v"
   },
   "dependencies": {
     "react": "19.2.6",
