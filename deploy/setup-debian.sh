@@ -30,7 +30,7 @@ fi
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  nginx python3 ca-certificates certbot python3-certbot-nginx logrotate
+  nginx python3 ca-certificates certbot python3-certbot-nginx logrotate curl
 install -d -m 0755 /srv/n4ml/releases
 install -m 0755 "$tools_dir/site.py" /usr/local/sbin/n4ml-site
 sed "s/__DOMAIN__/$domain/g" "$tools_dir/nginx.conf" > "$config"
