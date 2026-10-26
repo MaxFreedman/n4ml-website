@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  uid,
   seed,
   blank,
   validateData,
@@ -13,6 +14,27 @@ import {
   parseBackup,
   encodeBackup,
 } from "../public/projects/expeditionops/storage.js";
+
+test("ExpeditionOps creates distinct UUIDs on HTTP without randomUUID", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+  Object.defineProperty(crypto, "randomUUID", {
+    value: undefined,
+    configurable: true,
+  });
+  try {
+    const ids = Array.from({ length: 1000 }, () => uid());
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ids) {
+      assert.match(
+        id,
+        /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,
+      );
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(crypto, "randomUUID", descriptor);
+    else delete crypto.randomUUID;
+  }
+});
 
 test("ExpeditionOps backups retain planning data and reject invalid imports", () => {
   const data = seed();
