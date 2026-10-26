@@ -120,7 +120,7 @@ def prune(root, keep):
             shutil.rmtree(release)
 
 
-def install(root, archive, keep):
+def install(root, archive, keep, expected_commit=None):
     if shutil.disk_usage(root).free < MAX_BYTES + 256 * 1024 ** 2:
         raise ValueError("Need at least 1.25 GiB free before installing a release")
     current = target_of(root, "current")
@@ -129,6 +129,8 @@ def install(root, archive, keep):
     try:
         extract(archive, staging)
         commit = verify(staging)
+        if expected_commit and commit != expected_commit:
+            raise ValueError("Release commit does not match the requested deployment")
         stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         release = root / "releases" / f"{stamp}-{commit[:12]}"
         staging.rename(release)
@@ -149,6 +151,7 @@ def main():
     deploy = commands.add_parser("install")
     deploy.add_argument("archive", type=Path)
     deploy.add_argument("--keep", type=int, choices=range(2, 6), default=3)
+    deploy.add_argument("--commit", help="Require this exact Git SHA before activation")
     commands.add_parser("rollback")
     commands.add_parser("status")
     args = parser.parse_args()
@@ -159,7 +162,7 @@ def main():
     with (root / ".deploy.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.command == "install":
-            install(root, args.archive, args.keep)
+            install(root, args.archive, args.keep, args.commit)
         elif args.command == "rollback":
             previous = target_of(root, "previous")
             current = target_of(root, "current")

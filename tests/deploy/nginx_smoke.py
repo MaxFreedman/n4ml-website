@@ -73,6 +73,8 @@ with tempfile.TemporaryDirectory() as temporary:
                 raise AssertionError(f'Missing file did not return 404: {path}')
             except urllib.error.HTTPError as error:
                 assert error.code == 404
+        commit = json.loads((root / 'current/release.json').read_text())['commit']
+        subprocess.run([sys.executable, str(repo / 'deploy/check-live.py'), base, commit], check=True)
         print('Debian Nginx: routes, caching, precompression, JSON, all 8 audio ranges, and 404s passed.')
     finally:
         os.kill(server.pid, signal.SIGQUIT)
