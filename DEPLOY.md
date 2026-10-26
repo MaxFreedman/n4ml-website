@@ -10,7 +10,7 @@ Set the GitHub Actions repository variable `SITE_URL` to the eventual HTTPS orig
 
 ## Get a tested release
 
-The workflow runs lint, application tests, packaging, installer/rollback tests, and real Nginx checks in a **Debian 13 container limited to 1 CPU and 1 GiB RAM**. Tags beginning `vps-` publish verified bundles to [GitHub Releases](https://github.com/MaxFreedman/n4ml-website/releases). Main-branch pushes and manual runs also produce an Actions artifact retained for one day.
+The workflow runs lint, application tests, packaging, installer/rollback tests, and real Nginx checks in a **Debian 12 and 13 containers limited to 1 CPU and 1 GiB RAM**. Tags beginning `vps-` publish verified bundles to [GitHub Releases](https://github.com/MaxFreedman/n4ml-website/releases). Main-branch pushes and manual runs also produce an Actions artifact retained for one day.
 
 On your computer, download the three release assets:
 
@@ -29,7 +29,7 @@ Output: `release/n4ml-vps.tar.gz`, `release/n4ml-deploy-tools.tar.gz`, and `rele
 
 ## Upload and configure Debian
 
-Use Debian 13 (the tested version). Replace `USER`, `VPS_IP`, and `YOUR_DOMAIN`. The SSH user needs sudo; a provider-issued root account can omit `sudo`.
+Debian 12 and 13 are tested. Replace `USER`, `VPS_IP`, and `YOUR_DOMAIN`. The SSH user needs sudo; a provider-issued root account can omit `sudo`.
 
 ```sh
 ssh USER@VPS_IP 'mkdir -p /var/tmp/n4ml-deploy'
@@ -92,3 +92,27 @@ sudo n4ml-site status
 Rollback verifies the previous release before switching; running it again switches back. There is no server-side user data in the releases. Back up `/etc/nginx` and `/etc/letsencrypt` separately, and keep ExpeditionOps JSON backups.
 
 References: [Nginx static serving](https://docs.nginx.com/nginx/admin-guide/web-server/serving-static-content/), [precompressed files](https://nginx.org/en/docs/http/ngx_http_gzip_static_module.html), [Debian's Certbot package](https://packages.debian.org/trixie/python3-certbot-nginx).
+
+
+## Automatic GitHub deployment
+
+The production server is `http://162.0.233.219` for now. Every successful push to `main`, or a manual workflow run on `main`, deploys after lint, application tests, and both constrained Debian/Nginx jobs pass. Pull requests and release tags never deploy to production. The `production` environment permits only `main`. Deployments are serialized and an active deployment is not cancelled by a newer push.
+
+The production environment holds the encrypted `VPS_SSH_KEY` secret plus `VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_URL`, and `VPS_KNOWN_HOSTS` variables. `SITE_URL` is a repository variable used during the build. The server host key is pinned from the initial administrative connection; workflow runs never trust a fresh network key automatically. The root password is not used by GitHub.
+
+Server setup for this transport (run once as administrator, after the Nginx setup):
+
+```sh
+sudo bash deploy/setup-cicd.sh /path/to/ci-public-key.pub
+```
+
+This creates the unprivileged `n4ml-deploy` account and installs a forced SSH command. Its key accepts only `status` or a release stream with an exact commit and SHA-256. It cannot open a shell, allocate a terminal, forward connections, edit Nginx, or use sudo. The receiver checks the upload, verifies all extracted files, requires the expected commit before activation, and removes the upload afterward. It then checks the receipt, pages, assets, contact index, and range requests for all eight recordings. A failed server-side health check restores the previous release when one exists. GitHub repeats the live checks from outside the VPS.
+
+Keep the server-side deployment tools root-owned and update them through an administrative session when their code changes; routine CI deployment updates only static site files. For manual rollback after CI is configured, preserve file ownership by using:
+
+```sh
+sudo -u n4ml-deploy /usr/local/sbin/n4ml-site rollback
+sudo -u n4ml-deploy /usr/local/sbin/n4ml-site status
+```
+
+To change to a domain later, update Nginx and DNS, obtain HTTPS, then change `SITE_URL` and `VPS_URL` and run the workflow on `main`.

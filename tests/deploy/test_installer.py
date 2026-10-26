@@ -69,6 +69,13 @@ class InstallerTests(unittest.TestCase):
         self.run_cli('rollback', success=False)
         self.assertEqual((self.root / 'current').resolve(), current)
 
+    def test_wrong_commit_is_rejected_before_activation(self):
+        self.run_cli('install', self.bundle())
+        current = (self.root / 'current').resolve()
+        self.run_cli('install', self.bundle('b' * 40), '--commit', 'c' * 40, success=False)
+        self.assertEqual((self.root / 'current').resolve(), current)
+        self.assertEqual(list((self.root / 'releases').glob('.incoming-*')), [])
+
     def test_traversal_links_and_oversized_archives_are_rejected(self):
         for kind in ('traversal', 'symlink', 'oversized'):
             with self.subTest(kind=kind):

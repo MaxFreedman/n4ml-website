@@ -1,4 +1,4 @@
-name: Build and verify Debian release
+name: Build, test, and deploy VPS
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: vps-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -37,8 +37,11 @@ jobs:
   debian:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: ['12', '13']
     container:
-      image: debian:13-slim
+      image: debian:${{ matrix.version }}-slim
       options: --memory 1g --cpus 1
     steps:
       - uses: actions/checkout@v6
@@ -53,6 +56,49 @@ jobs:
           cd release && sha256sum --check SHA256SUMS && cd ..
           python3 -m unittest discover -s tests/deploy -v
           python3 tests/deploy/nginx_smoke.py release/n4ml-vps.tar.gz
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [build, debian]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.VPS_URL }}
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: n4ml-vps
+          path: release
+      - name: Upload and activate the verified site
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ vars.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_URL: ${{ vars.VPS_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum --check SHA256SUMS
+          key_dir=$(mktemp -d "$RUNNER_TEMP/n4ml-ssh.XXXXXX")
+          trap 'rm -rf "$key_dir"' EXIT
+          printf '%s\n' "$VPS_SSH_KEY" > "$key_dir/key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$key_dir/known_hosts"
+          chmod 600 "$key_dir/key" "$key_dir/known_hosts"
+          archive_sha=$(sha256sum n4ml-vps.tar.gz | cut -d' ' -f1)
+          ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$key_dir/known_hosts" -o ConnectTimeout=20 \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            -i "$key_dir/key" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "deploy $GITHUB_SHA $archive_sha" < n4ml-vps.tar.gz
+          mkdir checks
+          tar -xzf n4ml-deploy-tools.tar.gz -C checks
+          python3 checks/deploy/check-live.py "$VPS_URL" "$GITHUB_SHA"
 
   publish:
     if: startsWith(github.ref, 'refs/tags/vps-')
